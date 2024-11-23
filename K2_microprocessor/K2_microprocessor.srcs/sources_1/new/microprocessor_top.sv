@@ -20,19 +20,23 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module microprocessor_top(
+module microprocessor_top#(
+        //parameter INST_WIDTH = 8,
+        //parameter INST_DEPTH = 16,
+        parameter DATA_WIDTH = 8
+        
+)(
         input logic clk,
         input logic reset_n,
         input logic en,
-        output logic RA, RB, RO
+        output logic [3:0] prog_count,
+        output logic [DATA_WIDTH-1:0] A, B, Out
 
     );
     
     localparam INST_WIDTH = 8;
     localparam INST_DEPTH = 16;
-    localparam DATA_WIDTH = 8;
-    
-    // INSTRUCTION MEMORY
+    //localparam DATA_WIDTH = 8;
     
     logic [INST_WIDTH-1:0] inst;
     logic J, C, D1, D0, Sreg, S;
@@ -40,19 +44,11 @@ module microprocessor_top(
     
     // INSTRUCTION MEMORY
     
-    // PROGRAM COUNTER
-    
-    logic prog_count;
-    
-    mod_n_counter#(.N(INST_DEPTH)) PC (
-        .clk(clk),
-        .areset(reset_n),
-        .en(en),
-        .load(Sreg),
-        .d(imm),
-        .q(prog_count)
-     );
-     
+    instruction_memory inst_memory (
+        .address(prog_count),
+        .instruction(inst)
+    );
+         
      // INSTRUCTION DECODER
      
      inst_decoder#(.n(INST_WIDTH)) inst_decoder(
@@ -66,9 +62,25 @@ module microprocessor_top(
         .imm(imm)
     );
     
+    logic [3:0] imm_ext;
+    assign imm_ext = {1'b0, imm}; // Extended version of imm to input to the program counter
+    
+    // PROGRAM COUNTER
+    
+    //logic prog_count;
+ 
+    mod_n_counter#(.N(16)) PC (
+        .clk(clk),
+        .areset(reset_n),
+        .en(en),
+        .load(Sreg),
+        .d(imm_ext),
+        .q(prog_count)
+     );
+    
     // ALU
     
-    logic [DATA_WIDTH-1:0] A, B, Out;
+    //logic [DATA_WIDTH-1:0] A, B, Out;
     logic Cout;
     logic [DATA_WIDTH-1:0] alu_out;
     
@@ -82,12 +94,11 @@ module microprocessor_top(
     
     // MULTIPLEXER
     
-    localparam WIDTH1 = 3;
-    localparam WIDTH2 = 8;
+    localparam IMM_WIDTH = 3;
     
-    logic [((WIDTH1 > WIDTH2) ? WIDTH1 : WIDTH2)-1:0] mux_out;
+    logic [((IMM_WIDTH > DATA_WIDTH) ? IMM_WIDTH : DATA_WIDTH)-1:0] mux_out;
      
-    mux2_1 #(.WIDTH1(WIDTH1), .WIDTH2(WIDTH2)) mux (
+    mux2_1 #(.WIDTH1(IMM_WIDTH), .WIDTH2(DATA_WIDTH)) mux (
         .A(imm),
         .B(alu_out), 
         .S(Sreg),
@@ -97,9 +108,9 @@ module microprocessor_top(
     // REGISTER DE-MULTIPLEXING
     
     logic en_A, en_B, en_Out;
-    assign en_A = ~D1 & ~D0;
-    assign en_B = ~D1 & D0;
-    assign en_Out = D1 & ~D0;
+    assign en_A = ~D1 & ~D0 & en;
+    assign en_B = ~D1 & D0 & en;
+    assign en_Out = D1 & ~D0 & en;
     
     // REGISTERS
     
@@ -126,6 +137,6 @@ module microprocessor_top(
         .d(A),
         .q(Out) 
     );
-    
+
     
 endmodule
