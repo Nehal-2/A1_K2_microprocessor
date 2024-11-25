@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 11/21/2024 04:07:30 PM
+// Create Date: 11/25/2024 12:20:30 PM
 // Design Name: 
-// Module Name: microprocessor_top
+// Module Name: microprocessor_v2
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,9 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module microprocessor_v1#(
-        //parameter INST_WIDTH = 8,
-        //parameter INST_DEPTH = 16,
+module microprocessor_v2#(
         parameter DATA_WIDTH = 8
         
 )(
@@ -35,8 +33,9 @@ module microprocessor_v1#(
     );
     
     localparam INST_WIDTH = 8;
-    localparam INST_DEPTH = 9;
-    //localparam DATA_WIDTH = 8;
+    localparam INST_DEPTH = 16;
+    localparam IMM_WIDTH = 3;
+    localparam DATA_DEPTH = 2 ** IMM_WIDTH; // 2^(number of imm bits)
     
     logic [INST_WIDTH-1:0] inst;
     logic J, C, D1, D0, Sreg, S;
@@ -65,13 +64,31 @@ module microprocessor_v1#(
     logic [3:0] imm_ext;
     assign imm_ext = {1'b0, imm}; // Extended version of imm to input to the program counter
     
+    // DATA MEMORY
+    
+    logic Wen;
+    assign Wen = Sreg & C;
+    logic [DATA_WIDTH-1:0] data_out;
+    
+    data_memory #(
+        .WIDTH(DATA_WIDTH),   
+        .DEPTH(DATA_DEPTH)    
+    ) datamem (
+        .clk(clk),
+        .reset_n(reset_n),
+        .address(imm),
+        .data_in(A),
+        .Wen(Wen),
+        .data_out(data_out)
+    );
+    
     // PROGRAM COUNTER
 
     logic load2counter;
-    mod_n_counter#(.N(9)) PC (
+    mod_n_counter#(.N(INST_DEPTH)) PC (
         .clk(clk),
         .areset(reset_n),
-        .en(en),
+        .en(en & !load2counter), // en OR !load2counter
         .load(load2counter),
         .d(imm_ext),
         .q(prog_count)
@@ -79,7 +96,6 @@ module microprocessor_v1#(
     
     // ALU
     
-    //logic [DATA_WIDTH-1:0] A, B, Out;
     logic Cout;
     logic [DATA_WIDTH-1:0] alu_out;
     
@@ -94,16 +110,6 @@ module microprocessor_v1#(
     // Program counter logic for jump
     logic Cout_ff;
     
-//    d_flipflop ff_carry(
-//        input logic clk,
-//        input logic areset,
-//        input logic en,
-//        input logic d,
-//        output logic qm,
-//        output logic qs
-
-//    );
-    
     register_nbit #(.n(1)) ff_carry(
         .clk(clk),
         .areset(reset_n),
@@ -112,19 +118,43 @@ module microprocessor_v1#(
         .q(Cout_ff) 
     );
     
-    assign load2counter = J | (C & Cout_ff);
+    logic jump_out, Z;
+    logic [1:0] jump_sel;
+    assign jump_sel = {J, C};
+    assign Z = ~|alu_out;
     
-    // MULTIPLEXER
+    mux3_1 #(.WIDTH_IN(1)) mux_jump (
+        .A(Cout_ff), // JC
+        .B(1'b1), // J
+        .C(Z), // JZ
+        .S(jump_sel),
+        .Y(jump_out)
+    );
     
-    localparam IMM_WIDTH = 3;
+    assign load2counter = jump_out & ~Sreg;
     
-    logic [((IMM_WIDTH > DATA_WIDTH) ? IMM_WIDTH : DATA_WIDTH)-1:0] mux_out;
+    // MULTIPLEXER 1
+    
+    logic [((IMM_WIDTH > DATA_WIDTH) ? IMM_WIDTH : DATA_WIDTH)-1:0] mux1_out;
      
-    mux2_1 #(.WIDTH1(IMM_WIDTH), .WIDTH2(DATA_WIDTH)) mux (
+    mux2_1 #(.WIDTH1(IMM_WIDTH), .WIDTH2(DATA_WIDTH)) mux1 (
         .A(imm),
         .B(alu_out), 
         .S(Sreg),
-        .Y(mux_out)
+        .Y(mux1_out)
+    );
+    
+    // MULTIPLEXER 2
+    
+    logic [DATA_WIDTH-1:0] mux2_out;
+    logic mux2_sel;
+    assign mux2_sel = Sreg & ~C & J;
+     
+    mux2_1 #(.WIDTH1(DATA_WIDTH), .WIDTH2(DATA_WIDTH)) mux2 (
+        .A(data_out),
+        .B(mux1_out), 
+        .S(mux2_sel),
+        .Y(mux2_out)
     );
     
     // REGISTER DE-MULTIPLEXING
@@ -140,7 +170,7 @@ module microprocessor_v1#(
         .clk(clk),
         .areset(reset_n),
         .en(en_A), 
-        .d(mux_out),
+        .d(mux2_out),
         .q(A) 
     );
     
@@ -148,7 +178,7 @@ module microprocessor_v1#(
         .clk(clk),
         .areset(reset_n),
         .en(en_B), 
-        .d(mux_out),
+        .d(mux2_out),
         .q(B) 
     );
     
@@ -160,5 +190,4 @@ module microprocessor_v1#(
         .q(Out) 
     );
 
-    
 endmodule

@@ -24,8 +24,8 @@ module instruction_memory#(
         parameter WIDTH = 8,
         parameter DEPTH = 16
 )(
-    input logic [3:0] address,   // Address 8bit
-    output logic [7:0] instruction // Data output
+    input logic [3:0] address,
+    output logic [WIDTH-1:0] instruction // Data output
 );
 
     logic [WIDTH-1:0] memory [0:DEPTH-1]; 

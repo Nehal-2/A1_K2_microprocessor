@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 11/22/2024 06:06:58 PM
+// Create Date: 11/25/2024 02:42:42 PM
 // Design Name: 
-// Module Name: tb_microprocessor_top
+// Module Name: tb_microprocessor_v2
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,14 +20,14 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module tb_microprocessor_v1;
+module tb_microprocessor_v2;
     logic clk;
     logic reset_n;
     logic en;
     logic [3:0] prog_count;
     logic [7:0] RA, RB, RO;
     
-    microprocessor_v1 dut (
+    microprocessor_v2 dut (
         .clk(clk),
         .reset_n(reset_n),
         .en(en),
@@ -43,8 +43,6 @@ module tb_microprocessor_v1;
         forever #5 clk = ~clk;  // 10 time units clock period
     end
     
-    //logic n = 8;
-
     // Test sequence
     initial begin
         $display("                Time   | Reset | Enable |     PC     |      RA      |      RB      |        RO");
@@ -65,15 +63,12 @@ module tb_microprocessor_v1;
         
         en = 0; #10
         
-        // Reset
-        reset_n = 0; #10;
-        reset_n = 1; #10;
-        
         en = 1; #220;
         
         // Reset
         reset_n = 0; #10;
-        reset_n = 1; #10    
+        reset_n = 1; #10;
+          
         
         $stop;
     end
